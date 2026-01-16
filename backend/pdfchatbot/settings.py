@@ -40,8 +40,6 @@ ALLOWED_HOSTS = [
     ".railway.app",
 ]
 
-DEBUG = False
-
 # Application definition
 
 INSTALLED_APPS = [
