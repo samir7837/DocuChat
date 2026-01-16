@@ -1,14 +1,24 @@
-Django>=4.2
-djangorestframework
+Django>=4.2,<5.0
 gunicorn
+
 python-dotenv
-requests
-PyPDF2
+
+# Cloudinary
 cloudinary
-django-cors-headers
 django-cloudinary-storage
 
+# REST / API
+djangorestframework
+django-cors-headers
 
+# PDF processing
+pypdf
+PyMuPDF
 
+# LangChain ecosystem (minimal & safe)
+langchain
+langchain-community
+langchain-core
 
-
+# HTTP
+requests
