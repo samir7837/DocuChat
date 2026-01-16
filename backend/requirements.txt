@@ -6,3 +6,6 @@ requests
 PyPDF2
 cloudinary
 django-cors-headers
+django-cloudinary-storage
+
+
