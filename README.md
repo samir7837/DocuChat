@@ -30,7 +30,7 @@ START → Context Condenser → Question Router → Answer Generator → Safety 
 
 ## Tech Stack
 - Django 5.2.10, Django REST Framework
-- React 19.2.0, Bootstrap 5 (Black & White Theme)
+- React 19.2.0, Bootstrap 5 
 - LangChain, LangGraph
 - OpenRouter API (for GPT-4o-mini)
 - pypdf, pdfplumber

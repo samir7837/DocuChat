@@ -31,6 +31,8 @@ export default function App() {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState("")
 
+  const API_BASE = import.meta.env.VITE_API_BASE_URL
+
   /* ---------- Upload PDF ---------- */
   const uploadPDF = async (e) => {
     const file = e.target.files[0]
@@ -42,7 +44,7 @@ export default function App() {
     const form = new FormData()
     form.append("file", file)
 
-    const res = await fetch("http://127.0.0.1:8000/api/upload/", {
+    const res = await fetch(`${API_BASE}/api/upload/`, {
       method: "POST",
       body: form,
     })
@@ -52,7 +54,7 @@ export default function App() {
 
   /* ---------- Start Session ---------- */
   const startSession = async () => {
-    const res = await fetch("http://127.0.0.1:8000/api/session/", {
+    const res = await fetch(`${API_BASE}/api/session/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ document_ids: documents.map((d) => d.id) }),
@@ -77,7 +79,7 @@ export default function App() {
     setInput("")
 
     const res = await fetch(
-      `http://127.0.0.1:8000/api/chat/${sessionId}/`,
+      `${API_BASE}/api/chat/${sessionId}/`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -115,17 +117,15 @@ export default function App() {
         )}
 
         {documents.length > 0 && (
-  <div className="docs">
-    <h4 className="docs-title">Documents</h4>
-
-    {documents.map((d) => (
-      <div key={d.id} className="doc-item">
-        {d.name}
-      </div>
-    ))}
-  </div>
-)}
-
+          <div className="docs">
+            <h4 className="docs-title">Documents</h4>
+            {documents.map((d) => (
+              <div key={d.id} className="doc-item">
+                {d.name}
+              </div>
+            ))}
+          </div>
+        )}
       </aside>
 
       {/* Chat */}

@@ -6,6 +6,7 @@ from django.core.files.storage import default_storage
 from .models import Document, ChatSession, Message
 from .utils import parse_pdf
 import os
+import cloudinary.uploader
 
 
 class HealthCheckView(APIView):
@@ -24,18 +25,24 @@ class UploadPDFView(APIView):
         if not file:
             return Response({"error": "No file provided"}, status=400)
 
-        file_path = default_storage.save(f"pdfs/{file.name}", file)
-        full_path = os.path.join(default_storage.location, file_path)
+        # Upload to Cloudinary
+        upload_result = cloudinary.uploader.upload(
+            file,
+            resource_type="raw",
+            folder="docuchat_pdfs/"
+        )
 
+        file_url = upload_result.get("secure_url")
+        
         try:
-            parsed_content = parse_pdf(full_path)
+           parsed_content = parse_pdf(file_url)
         except Exception as e:
             return Response({"error": str(e)}, status=400)
 
         doc = Document.objects.create(
-            name=file.name,
-            file=file_path,
-            parsed_content=parsed_content
+           name=file.name,
+           file_url=file_url,
+           parsed_content=parsed_content,
         )
 
         return Response(
