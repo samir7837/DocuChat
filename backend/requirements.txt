@@ -10,6 +10,7 @@ cloudinary
 django-cloudinary-storage
 
 pypdf
+pdfplumber
 PyMuPDF
 
 langchain
@@ -17,3 +18,4 @@ langchain-community
 langchain-core
 
 requests
+
