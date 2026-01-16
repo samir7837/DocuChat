@@ -3,22 +3,17 @@ gunicorn
 
 python-dotenv
 
-# Cloudinary
-cloudinary
-django-cloudinary-storage
-
-# REST / API
 djangorestframework
 django-cors-headers
 
-# PDF processing
+cloudinary
+django-cloudinary-storage
+
 pypdf
 PyMuPDF
 
-# LangChain ecosystem (minimal & safe)
 langchain
 langchain-community
 langchain-core
 
-# HTTP
 requests
