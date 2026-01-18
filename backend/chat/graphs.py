@@ -49,6 +49,7 @@ def is_intellectual_query(query: str) -> bool:
 # ============================
 def get_llm():
     api_key = os.getenv("OPENROUTER_API_KEY")
+
     if not api_key:
         return None
 
@@ -57,7 +58,7 @@ def get_llm():
             model="gpt-4o-mini",
             temperature=0.2,
             base_url="https://openrouter.ai/api/v1",
-            api_key=api_key
+            api_key=api_key,
         )
     except Exception:
         return None
@@ -65,15 +66,20 @@ def get_llm():
 
 def call_llm(prompt: str) -> str:
     llm = get_llm()
+
     if llm is None:
         return (
             "AI is not configured correctly. "
-            "Please check that the API key is set."
+            "Please check your OPENROUTER_API_KEY."
         )
 
     try:
         response = llm.invoke([HumanMessage(content=prompt)])
-        return response.content.strip() if hasattr(response, "content") else str(response)
+        return (
+            response.content.strip()
+            if hasattr(response, "content")
+            else str(response)
+        )
     except Exception as e:
         return f"AI error: {str(e)}"
 
@@ -82,16 +88,11 @@ def call_llm(prompt: str) -> str:
 # Graph Nodes
 # ============================
 def context_condenser(state: ChatState) -> ChatState:
-    """
-    Build a SAFE, global document context.
-    We do NOT aggressively filter sections anymore.
-    """
     doc = state.get("document_content", {})
     context = ""
 
     for page_num, page_data in doc.items():
         if isinstance(page_data, dict):
-            # Structured PDF
             for sec in page_data.get("sections", []):
                 chunk = (
                     f"Page {page_num} - {sec.get('title', 'Section')}\n"
@@ -101,7 +102,6 @@ def context_condenser(state: ChatState) -> ChatState:
                     break
                 context += chunk
         else:
-            # Raw text fallback
             chunk = f"Page {page_num}\n{str(page_data)}\n\n"
             if len(context) + len(chunk) > MAX_CONTEXT_CHARS:
                 break
@@ -118,39 +118,33 @@ def answer_generator(state: ChatState) -> ChatState:
 
     if not context.strip():
         state["answer"] = (
-            "I couldn’t extract meaningful text from this PDF. "
-            "If the document is scanned or image-based, text extraction may be limited."
+            "I couldn’t extract readable text from this PDF. "
+            "If it is scanned or image-based, OCR may be required."
         )
         return state
 
-    # Intellectual / reasoning mode
     if is_intellectual_query(query):
         prompt = f"""
-You are an analytical research assistant.
+You are an analytical document assistant.
 
-Using the document content below, infer:
-- the main topic
-- the purpose of the document
-- key themes or ideas
+Using the document below, infer:
+- main topic
+- purpose
+- key ideas
 
-You may summarize, abstract, and explain.
-If some details are unclear, state reasonable interpretations instead of refusing.
-
-Document content:
+Document:
 {context}
 
-Provide a clear, structured, thoughtful response.
+Respond clearly and structurally.
 """
     else:
-        # Strict factual mode
         prompt = f"""
-You are a precise document analysis assistant.
+You are a factual document assistant.
 
-Answer the question strictly using the document content below.
-Do NOT introduce external knowledge.
-If the answer is not present, say so clearly.
+Answer ONLY using the document content.
+If the answer does not exist, say so.
 
-Document content:
+Document:
 {context}
 
 Question:
@@ -162,26 +156,23 @@ Question:
 
 
 def safety_validator(state: ChatState) -> ChatState:
-    """
-    Soft validation.
-    We no longer nuke answers aggressively.
-    """
     state["validation_passed"] = True
     return state
 
 
 # ============================
-# Graph Construction
+# ✅ SAFE GRAPH FACTORY
 # ============================
-graph = StateGraph(ChatState)
+def get_compiled_graph():
+    graph = StateGraph(ChatState)
 
-graph.add_node("context_condenser", context_condenser)
-graph.add_node("answer_generator", answer_generator)
-graph.add_node("safety_validator", safety_validator)
+    graph.add_node("context_condenser", context_condenser)
+    graph.add_node("answer_generator", answer_generator)
+    graph.add_node("safety_validator", safety_validator)
 
-graph.add_edge(START, "context_condenser")
-graph.add_edge("context_condenser", "answer_generator")
-graph.add_edge("answer_generator", "safety_validator")
-graph.add_edge("safety_validator", END)
+    graph.add_edge(START, "context_condenser")
+    graph.add_edge("context_condenser", "answer_generator")
+    graph.add_edge("answer_generator", "safety_validator")
+    graph.add_edge("safety_validator", END)
 
-compiled_graph = graph.compile()
+    return graph.compile()
