@@ -48,7 +48,6 @@ export default function App() {
       ])
     } catch (err) {
       setPdfName("")
-
       setMessages([
         {
           role: "assistant",
