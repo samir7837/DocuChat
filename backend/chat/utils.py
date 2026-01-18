@@ -1,47 +1,33 @@
+import requests
+import tempfile
 import pypdf
-import pdfplumber
-from typing import Dict, Any
+from pdfplumber import open as pdf_open
 
 
-def parse_pdf(file_obj) -> Dict[str, Any]:
-    """
-    Parse PDF directly from uploaded file (InMemoryUploadedFile)
-    """
+def parse_pdf_from_url(url: str):
+    response = requests.get(url)
 
-    content = {}
+    if response.status_code != 200:
+        raise Exception(f"Failed to download PDF: {response.status_code}")
 
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        tmp.write(response.content)
+        tmp_path = tmp.name
+
+    return parse_pdf(tmp_path)
+
+
+def parse_pdf(file_path: str):
     try:
-        with pdfplumber.open(file_obj) as pdf:
+        with pdf_open(file_path) as pdf:
+            content = {}
             for i, page in enumerate(pdf.pages):
                 text = page.extract_text() or ""
-                content[str(i + 1)] = {
-                    "text": text,
-                    "sections": [
-                        {
-                            "title": "Page Content",
-                            "content": text,
-                            "page": i + 1,
-                        }
-                    ],
-                }
-        return content
-
-    except Exception:
-        # fallback to pypdf
-        file_obj.seek(0)
-
-        reader = pypdf.PdfReader(file_obj)
+                content[str(i + 1)] = {"text": text}
+            return content
+    except:
+        reader = pypdf.PdfReader(file_path)
+        content = {}
         for i, page in enumerate(reader.pages):
-            text = page.extract_text() or ""
-            content[str(i + 1)] = {
-                "text": text,
-                "sections": [
-                    {
-                        "title": "Page Content",
-                        "content": text,
-                        "page": i + 1,
-                    }
-                ],
-            }
-
+            content[str(i + 1)] = {"text": page.extract_text() or ""}
         return content
