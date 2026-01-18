@@ -22,9 +22,13 @@ export default function App() {
     try {
       const res = await fetch(`${API}/upload/`, {
         method: "POST",
+        headers: {
+          Accept: "application/json", // 🔥 REQUIRED FOR DRF
+        },
         body: form,
       })
 
+      // backend returned HTML? catch early
       const text = await res.text()
 
       let data
@@ -78,6 +82,7 @@ export default function App() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
         },
         body: JSON.stringify({ message: question }),
       })
