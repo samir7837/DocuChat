@@ -25,7 +25,14 @@ export default function App() {
         body: form,
       })
 
-      const data = await res.json()
+      const text = await res.text()
+
+      let data
+      try {
+        data = JSON.parse(text)
+      } catch {
+        throw new Error("Backend returned HTML instead of JSON")
+      }
 
       if (!res.ok) {
         throw new Error(data.error || "Upload failed")
@@ -73,12 +80,17 @@ export default function App() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          message: question,
-        }),
+        body: JSON.stringify({ message: question }),
       })
 
-      const data = await res.json()
+      const text = await res.text()
+
+      let data
+      try {
+        data = JSON.parse(text)
+      } catch {
+        throw new Error("Backend returned HTML instead of JSON")
+      }
 
       if (!res.ok) {
         throw new Error(data.answer || "AI failed")
@@ -96,7 +108,7 @@ export default function App() {
         ...prev,
         {
           role: "assistant",
-          content: err.message || "Something went wrong. Please try again.",
+          content: err.message || "Something went wrong.",
         },
       ])
     }
