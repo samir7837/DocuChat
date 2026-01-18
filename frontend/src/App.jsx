@@ -1,23 +1,19 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import ReactMarkdown from "react-markdown"
 import "./App.css"
 
 const API = import.meta.env.VITE_API_BASE_URL
 
-function TypingMessage({ text, onFinish }) {
+/* ---------- Typing Effect ---------- */
+function TypingMessage({ text }) {
   const [display, setDisplay] = useState("")
 
-  useEffect(() => {
+  useState(() => {
     let i = 0
-    setDisplay("")
-
     const interval = setInterval(() => {
       setDisplay((prev) => prev + text[i])
       i++
-      if (i >= text.length) {
-        clearInterval(interval)
-        onFinish()
-      }
+      if (i >= text.length) clearInterval(interval)
     }, 12)
 
     return () => clearInterval(interval)
@@ -28,83 +24,89 @@ function TypingMessage({ text, onFinish }) {
 
 export default function App() {
   const [documents, setDocuments] = useState([])
-  const [sessionId, setSessionId] = useState(null)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState("")
+  const [loading, setLoading] = useState(false)
 
   /* ---------- Upload PDF ---------- */
   const uploadPDF = async (e) => {
     const file = e.target.files[0]
-    if (!file) return
+    if (!file || file.type !== "application/pdf") {
+      alert("Only PDF files allowed")
+      return
+    }
 
     const form = new FormData()
     form.append("file", file)
 
-    const res = await fetch(`${API}/api/upload/`, {
-      method: "POST",
-      body: form,
-    })
+    try {
+      const res = await fetch(`${API}/api/upload/`, {
+        method: "POST",
+        body: form,
+      })
 
-    const data = await res.json()
+      const data = await res.json()
+      setDocuments((prev) => [...prev, data])
 
-    const docId = data.id || data.document_id
-    const docName = data.name || data.filename || file.name
-
-    setDocuments([{ id: docId, name: docName }])
-
-    /* 🔥 CREATE SESSION */
-    const sessionRes = await fetch(`${API}/api/session/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        document_ids: [docId],
-      }),
-    })
-
-    const sessionData = await sessionRes.json()
-
-    const sid = sessionData.session_id || sessionData.id
-
-    console.log("SESSION:", sessionData)
-
-    setSessionId(sid)
-
-    setMessages([
-      {
-        role: "assistant",
-        content: "Ask me anything about the PDF.",
-        typing: true,
-      },
-    ])
+      setMessages([
+        {
+          role: "assistant",
+          content: "PDF uploaded successfully. Ask me anything about it.",
+        },
+      ])
+    } catch (err) {
+      alert("Upload failed")
+    }
   }
 
   /* ---------- Send Message ---------- */
   const sendMessage = async () => {
-    if (!input.trim() || !sessionId) return
+    if (!input.trim()) return
 
-    setMessages((prev) => [...prev, { role: "user", content: input }])
+    const userMessage = input
     setInput("")
-
-    const res = await fetch(`${API}/api/chat/${sessionId}/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: input }),
-    })
-
-    const data = await res.json()
 
     setMessages((prev) => [
       ...prev,
-      {
-        role: "assistant",
-        content: data.answer,
-        typing: true,
-      },
+      { role: "user", content: userMessage },
     ])
+
+    setLoading(true)
+
+    try {
+      const res = await fetch(`${API}/api/chat/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userMessage,
+        }),
+      })
+
+      const data = await res.json()
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: data.answer || "No response from AI.",
+        },
+      ])
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Something went wrong. Please try again.",
+        },
+      ])
+    }
+
+    setLoading(false)
   }
 
   return (
     <div className="app">
+      {/* Sidebar */}
       <aside className="sidebar">
         <h2>DocuChat</h2>
         <p>AI Document Assistant</p>
@@ -122,15 +124,16 @@ export default function App() {
         {documents.length > 0 && (
           <div className="docs">
             <h4 className="docs-title">Documents</h4>
-            {documents.map((d) => (
-              <div key={d.id} className="doc-item">
-                {d.name}
+            {documents.map((d, i) => (
+              <div key={i} className="doc-item">
+                {d.name || "Uploaded PDF"}
               </div>
             ))}
           </div>
         )}
       </aside>
 
+      {/* Chat */}
       <main className="chat">
         <header>
           <h3>Hi, I am your Document Assistant</h3>
@@ -143,43 +146,30 @@ export default function App() {
               {m.role === "assistant" && <div className="ai-orb" />}
               <div className={`msg ${m.role}`}>
                 {m.role === "assistant" ? (
-                  m.typing ? (
-                    <TypingMessage
-                      text={m.content}
-                      onFinish={() =>
-                        setMessages((prev) =>
-                          prev.map((x, idx) =>
-                            idx === i ? { ...x, typing: false } : x
-                          )
-                        )
-                      }
-                    />
-                  ) : (
-                    <ReactMarkdown>{m.content}</ReactMarkdown>
-                  )
+                  <ReactMarkdown>{m.content}</ReactMarkdown>
                 ) : (
                   m.content
                 )}
               </div>
             </div>
           ))}
+
+          {loading && (
+            <div className="msg-row assistant">
+              <div className="ai-orb" />
+              <div className="msg assistant">Thinking...</div>
+            </div>
+          )}
         </section>
 
         <footer className="input-wrap">
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={
-              sessionId
-                ? "Message DocuChat..."
-                : "Upload a PDF to start"
-            }
-            disabled={!sessionId}
+            placeholder="Ask something about the PDF..."
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
           />
-          <button onClick={sendMessage} disabled={!sessionId}>
-            Send
-          </button>
+          <button onClick={sendMessage}>Send</button>
         </footer>
       </main>
     </div>
