@@ -2,8 +2,6 @@ import { useState, useEffect } from "react"
 import ReactMarkdown from "react-markdown"
 import "./App.css"
 
-const API = import.meta.env.VITE_API_BASE_URL
-
 /* ---------- Typing Effect ---------- */
 function TypingMessage({ text, onFinish }) {
   const [display, setDisplay] = useState("")
@@ -44,10 +42,13 @@ export default function App() {
     const form = new FormData()
     form.append("file", file)
 
-    const res = await fetch(`${API}/api/upload/`, {
-      method: "POST",
-      body: form,
-    })
+    const res = await fetch(
+      `${import.meta.env.VITE_BACKEND_URL}/api/upload/`,
+      {
+        method: "POST",
+        body: form,
+      }
+    )
 
     const data = await res.json()
     setDocuments((prev) => [...prev, data])
@@ -55,16 +56,21 @@ export default function App() {
 
   /* ---------- Start Session ---------- */
   const startSession = async () => {
-    const res = await fetch(`${API}/api/session/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        document_ids: documents.map((d) => d.id),
-      }),
-    })
+    const res = await fetch(
+      `${import.meta.env.VITE_BACKEND_URL}/api/session/`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          document_ids: documents.map((d) => d.id),
+        }),
+      }
+    )
 
     const data = await res.json()
-    setSessionId(data.session_id)
+
+    // ✅ FIX: support any backend key
+    setSessionId(data.session_id || data.id || data.session)
 
     setMessages([
       {
@@ -82,11 +88,14 @@ export default function App() {
     setMessages((prev) => [...prev, { role: "user", content: input }])
     setInput("")
 
-    const res = await fetch(`${API}/api/chat/${sessionId}/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: input }),
-    })
+    const res = await fetch(
+      `${import.meta.env.VITE_BACKEND_URL}/api/chat/${sessionId}/`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: input }),
+      }
+    )
 
     const data = await res.json()
 
@@ -102,6 +111,7 @@ export default function App() {
 
   return (
     <div className="app">
+      {/* Sidebar */}
       <aside className="sidebar">
         <h2>DocuChat</h2>
         <p>AI Document Assistant</p>
@@ -125,15 +135,17 @@ export default function App() {
         {documents.length > 0 && (
           <div className="docs">
             <h4 className="docs-title">Documents</h4>
+
             {documents.map((d) => (
               <div key={d.id} className="doc-item">
-                {d.name}
+                {d.name || d.filename || d.file}
               </div>
             ))}
           </div>
         )}
       </aside>
 
+      {/* Chat */}
       <main className="chat">
         <header>
           <h3>Hi, I am your Document Assistant</h3>
@@ -144,6 +156,7 @@ export default function App() {
           {messages.map((m, i) => (
             <div key={i} className={`msg-row ${m.role}`}>
               {m.role === "assistant" && <div className="ai-orb" />}
+
               <div className={`msg ${m.role}`}>
                 {m.role === "assistant" ? (
                   m.typing ? (
@@ -173,9 +186,11 @@ export default function App() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={
-              sessionId ? "Message DocuChat..." : "Upload a PDF to start"
+              sessionId
+                ? "Message DocuChat..."
+                : "Upload a PDF to start"
             }
-            disabled={!sessionId}
+            disabled={documents.length === 0}
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
           />
           <button onClick={sendMessage}>Send</button>
