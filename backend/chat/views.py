@@ -1,121 +1,173 @@
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework import status
-from django.core.files.temp import NamedTemporaryFile
+import { useState } from "react"
+import "./App.css"
 
-from .models import Document
-from .utils import parse_pdf
+const API = import.meta.env.VITE_API_BASE_URL
 
-import cloudinary.uploader
-import os
+export default function App() {
+  const [pdfName, setPdfName] = useState("")
+  const [messages, setMessages] = useState([])
+  const [input, setInput] = useState("")
+  const [loading, setLoading] = useState(false)
 
+  // =====================
+  // Upload PDF
+  // =====================
+  const uploadPDF = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
 
-class HealthCheckView(APIView):
-    def get(self, request):
-        return Response({"status": "healthy"}, status=200)
+    const form = new FormData()
+    form.append("file", file)
 
+    try {
+      const res = await fetch(`${API}/upload/`, {
+        method: "POST",
+        body: form,
+      })
 
-class UploadPDFView(APIView):
-    parser_classes = (MultiPartParser, FormParser)
+      const text = await res.text()
 
-    def post(self, request):
-        file = request.FILES.get("file")
+      let data
+      try {
+        data = JSON.parse(text)
+      } catch {
+        throw new Error("Backend returned HTML instead of JSON")
+      }
 
-        if not file:
-            return Response({"error": "No file uploaded"}, status=400)
+      if (!res.ok) {
+        throw new Error(data.error || "Upload failed")
+      }
 
-        # -------------------------
-        # 1️⃣ Save temp PDF locally
-        # -------------------------
-        temp_file = NamedTemporaryFile(delete=False, suffix=".pdf")
+      setPdfName(data.name)
 
-        try:
-            for chunk in file.chunks():
-                temp_file.write(chunk)
+      setMessages([
+        {
+          role: "assistant",
+          content: `PDF "${data.name}" uploaded successfully. Ask me anything about it.`,
+        },
+      ])
+    } catch (err) {
+      setPdfName("")
+      setMessages([
+        {
+          role: "assistant",
+          content: err.message || "Upload failed. Please try again.",
+        },
+      ])
+    }
+  }
 
-            temp_file.close()
+  // =====================
+  // Send Message
+  // =====================
+  const sendMessage = async () => {
+    if (!input.trim() || loading) return
 
-            # -------------------------
-            # 2️⃣ Parse local PDF path
-            # -------------------------
-            parsed_content = parse_pdf(temp_file.name)
+    const question = input
+    setInput("")
 
-        except Exception as e:
-            return Response(
-                {"error": f"PDF parsing failed: {str(e)}"},
-                status=400,
-            )
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: question },
+    ])
 
-        finally:
-            try:
-                os.unlink(temp_file.name)
-            except:
-                pass
+    setLoading(true)
 
-        # -------------------------
-        # 3️⃣ Upload to Cloudinary
-        # -------------------------
-        file.seek(0)
+    try {
+      const res = await fetch(`${API}/chat/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message: question }),
+      })
 
-        upload = cloudinary.uploader.upload(
-            file,
-            resource_type="raw",
-            folder="docuchat_pdfs/",
-        )
+      const text = await res.text()
 
-        # -------------------------
-        # 4️⃣ Save DB
-        # -------------------------
-        doc = Document.objects.create(
-            name=file.name,
-            file_url=upload.get("secure_url"),
-            parsed_content=parsed_content,
-        )
+      let data
+      try {
+        data = JSON.parse(text)
+      } catch {
+        throw new Error("Backend returned HTML instead of JSON")
+      }
 
-        return Response(
-            {
-                "id": doc.id,
-                "name": doc.name,
-                "pages": len(parsed_content),
-            },
-            status=201,
-        )
+      if (!res.ok) {
+        throw new Error(data.answer || "AI failed")
+      }
 
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: data.answer || "No response generated.",
+        },
+      ])
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: err.message || "Something went wrong.",
+        },
+      ])
+    }
 
-class ChatView(APIView):
-    def post(self, request):
-        query = request.data.get("message")
+    setLoading(false)
+  }
 
-        if not query:
-            return Response({"answer": "Empty message"}, status=200)
+  return (
+    <div className="app">
+      {/* Sidebar */}
+      <aside className="sidebar">
+        <h2>DocuChat</h2>
+        <p>AI Document Assistant</p>
 
-        doc = Document.objects.order_by("-id").first()
+        <label className="upload">
+          Upload PDF
+          <input
+            type="file"
+            accept="application/pdf"
+            hidden
+            onChange={uploadPDF}
+          />
+        </label>
 
-        if not doc:
-            return Response(
-                {"answer": "Please upload a PDF first."},
-                status=200,
-            )
+        {pdfName && (
+          <div className="docs">
+            <div className="docs-title">Documents</div>
+            <div className="doc-item">{pdfName}</div>
+          </div>
+        )}
+      </aside>
 
-        # lazy import avoids Railway boot crash
-        from .graphs import get_compiled_graph
+      {/* Chat */}
+      <main className="chat">
+        <header>
+          <h3>Hi, I am your Document Assistant</h3>
+          <span>Ask anything about your documents</span>
+        </header>
 
-        graph = get_compiled_graph()
+        <section className="messages">
+          {messages.map((m, i) => (
+            <div key={i} className={`msg-row ${m.role}`}>
+              <div className={`msg ${m.role}`}>{m.content}</div>
+            </div>
+          ))}
+        </section>
 
-        state = {
-            "document_content": doc.parsed_content,
-            "conversation_history": [],
-            "current_query": query,
-            "selected_context": "",
-            "answer": "",
-            "is_answerable": False,
-            "validation_passed": False,
-        }
-
-        result = graph.invoke(state)
-
-        return Response(
-            {"answer": result.get("answer", "No response generated.")},
-            status=200,
-        )
+        <footer className="input-wrap">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Ask something about the PDF..."
+            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+            disabled={loading}
+          />
+          <button onClick={sendMessage} disabled={loading}>
+            {loading ? "..." : "Send"}
+          </button>
+        </footer>
+      </main>
+    </div>
+  )
+}
