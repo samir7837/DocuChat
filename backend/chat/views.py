@@ -1,15 +1,19 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework import status
+from django.core.files.temp import NamedTemporaryFile
+
 from .models import Document
 from .utils import parse_pdf
+
 import cloudinary.uploader
+import os
 
 
 class HealthCheckView(APIView):
     def get(self, request):
-        return Response({"status": "healthy"})
+        return Response({"status": "healthy"}, status=200)
 
 
 class UploadPDFView(APIView):
@@ -21,16 +25,37 @@ class UploadPDFView(APIView):
         if not file:
             return Response({"error": "No file uploaded"}, status=400)
 
-        # ✅ parse FIRST
+        # -------------------------
+        # 1️⃣ Save temp PDF locally
+        # -------------------------
+        temp_file = NamedTemporaryFile(delete=False, suffix=".pdf")
+
         try:
-            parsed_content = parse_pdf(file)
+            for chunk in file.chunks():
+                temp_file.write(chunk)
+
+            temp_file.close()
+
+            # -------------------------
+            # 2️⃣ Parse local PDF path
+            # -------------------------
+            parsed_content = parse_pdf(temp_file.name)
+
         except Exception as e:
             return Response(
                 {"error": f"PDF parsing failed: {str(e)}"},
                 status=400,
             )
 
-        # reset pointer before upload
+        finally:
+            try:
+                os.unlink(temp_file.name)
+            except:
+                pass
+
+        # -------------------------
+        # 3️⃣ Upload to Cloudinary
+        # -------------------------
         file.seek(0)
 
         upload = cloudinary.uploader.upload(
@@ -39,6 +64,9 @@ class UploadPDFView(APIView):
             folder="docuchat_pdfs/",
         )
 
+        # -------------------------
+        # 4️⃣ Save DB
+        # -------------------------
         doc = Document.objects.create(
             name=file.name,
             file_url=upload.get("secure_url"),
@@ -70,6 +98,7 @@ class ChatView(APIView):
                 status=200,
             )
 
+        # lazy import avoids Railway boot crash
         from .graphs import get_compiled_graph
 
         graph = get_compiled_graph()
@@ -86,4 +115,7 @@ class ChatView(APIView):
 
         result = graph.invoke(state)
 
-        return Response({"answer": result.get("answer", "")})
+        return Response(
+            {"answer": result.get("answer", "No response generated.")},
+            status=200,
+        )
