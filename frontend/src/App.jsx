@@ -4,26 +4,9 @@ import "./App.css"
 
 const API = import.meta.env.VITE_API_BASE_URL
 
-/* ---------- Typing Effect ---------- */
-function TypingMessage({ text }) {
-  const [display, setDisplay] = useState("")
-
-  useState(() => {
-    let i = 0
-    const interval = setInterval(() => {
-      setDisplay((prev) => prev + text[i])
-      i++
-      if (i >= text.length) clearInterval(interval)
-    }, 12)
-
-    return () => clearInterval(interval)
-  }, [text])
-
-  return <span>{display}</span>
-}
-
 export default function App() {
   const [documents, setDocuments] = useState([])
+  const [activeDoc, setActiveDoc] = useState(null)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
@@ -31,10 +14,7 @@ export default function App() {
   /* ---------- Upload PDF ---------- */
   const uploadPDF = async (e) => {
     const file = e.target.files[0]
-    if (!file || file.type !== "application/pdf") {
-      alert("Only PDF files allowed")
-      return
-    }
+    if (!file) return
 
     const form = new FormData()
     form.append("file", file)
@@ -46,29 +26,31 @@ export default function App() {
       })
 
       const data = await res.json()
-      setDocuments((prev) => [...prev, data])
+
+      setDocuments([data])
+      setActiveDoc(data)
 
       setMessages([
         {
           role: "assistant",
-          content: "PDF uploaded successfully. Ask me anything about it.",
+          content: `PDF **${data.name}** uploaded successfully. Ask me anything about it.`,
         },
       ])
-    } catch (err) {
+    } catch {
       alert("Upload failed")
     }
   }
 
-  /* ---------- Send Message ---------- */
+  /* ---------- Chat ---------- */
   const sendMessage = async () => {
-    if (!input.trim()) return
+    if (!input.trim() || !activeDoc) return
 
-    const userMessage = input
+    const question = input
     setInput("")
 
     setMessages((prev) => [
       ...prev,
-      { role: "user", content: userMessage },
+      { role: "user", content: question },
     ])
 
     setLoading(true)
@@ -78,7 +60,8 @@ export default function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: userMessage,
+          message: question,
+          document_id: activeDoc.id,
         }),
       })
 
@@ -88,7 +71,7 @@ export default function App() {
         ...prev,
         {
           role: "assistant",
-          content: data.answer || "No response from AI.",
+          content: data.answer || "No response generated.",
         },
       ])
     } catch {
@@ -113,22 +96,13 @@ export default function App() {
 
         <label className="upload">
           Upload PDF
-          <input
-            type="file"
-            accept="application/pdf"
-            hidden
-            onChange={uploadPDF}
-          />
+          <input type="file" hidden accept="application/pdf" onChange={uploadPDF} />
         </label>
 
-        {documents.length > 0 && (
+        {activeDoc && (
           <div className="docs">
             <h4 className="docs-title">Documents</h4>
-            {documents.map((d, i) => (
-              <div key={i} className="doc-item">
-                {d.name || "Uploaded PDF"}
-              </div>
-            ))}
+            <div className="doc-item">{activeDoc.name}</div>
           </div>
         )}
       </aside>
@@ -145,11 +119,7 @@ export default function App() {
             <div key={i} className={`msg-row ${m.role}`}>
               {m.role === "assistant" && <div className="ai-orb" />}
               <div className={`msg ${m.role}`}>
-                {m.role === "assistant" ? (
-                  <ReactMarkdown>{m.content}</ReactMarkdown>
-                ) : (
-                  m.content
-                )}
+                <ReactMarkdown>{m.content}</ReactMarkdown>
               </div>
             </div>
           ))}
@@ -166,7 +136,11 @@ export default function App() {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask something about the PDF..."
+            placeholder={
+              activeDoc
+                ? "Ask something about the PDF..."
+                : "Upload a PDF first"
+            }
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
           />
           <button onClick={sendMessage}>Send</button>
