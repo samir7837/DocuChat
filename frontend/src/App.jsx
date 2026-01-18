@@ -27,6 +27,10 @@ export default function App() {
 
       const data = await res.json()
 
+      if (!res.ok) {
+        throw new Error(data.error || "Upload failed")
+      }
+
       setPdfName(data.name)
 
       setMessages([
@@ -36,10 +40,12 @@ export default function App() {
         },
       ])
     } catch (err) {
+      setPdfName("")
+
       setMessages([
         {
           role: "assistant",
-          content: "Upload failed. Please try again.",
+          content: err.message || "Upload failed. Please try again.",
         },
       ])
     }
@@ -64,13 +70,19 @@ export default function App() {
     try {
       const res = await fetch(`${API}/chat/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          message: question, // ✅ BACKEND EXPECTS THIS
+          message: question,
         }),
       })
 
       const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.answer || "AI failed")
+      }
 
       setMessages((prev) => [
         ...prev,
@@ -79,12 +91,12 @@ export default function App() {
           content: data.answer || "No response generated.",
         },
       ])
-    } catch {
+    } catch (err) {
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: "Something went wrong. Please try again.",
+          content: err.message || "Something went wrong. Please try again.",
         },
       ])
     }
@@ -138,8 +150,9 @@ export default function App() {
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask something about the PDF..."
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+            disabled={loading}
           />
-          <button onClick={sendMessage}>
+          <button onClick={sendMessage} disabled={loading}>
             {loading ? "..." : "Send"}
           </button>
         </footer>
