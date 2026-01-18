@@ -4,6 +4,7 @@ import "./App.css"
 
 const API = import.meta.env.VITE_API_BASE_URL
 
+/* ---------- Typing Effect ---------- */
 function TypingMessage({ text, onFinish }) {
   const [display, setDisplay] = useState("")
 
@@ -47,31 +48,24 @@ export default function App() {
 
     const data = await res.json()
 
-    // ✅ normalize backend response
-    setDocuments((prev) => [
-      ...prev,
-      {
-        id: data.id || data.document_id,
-        name: data.name || data.filename || file.name,
-      },
-    ])
-  }
+    const doc = {
+      id: data.id || data.document_id,
+      name: data.name || data.filename || file.name,
+    }
 
-  /* ---------- Start Session ---------- */
-  const startSession = async () => {
-    const res = await fetch(`${API}/api/session/`, {
+    setDocuments([doc])
+
+    // 🔥 auto start session
+    const sessionRes = await fetch(`${API}/api/session/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        document_ids: documents.map((d) => d.id),
+        document_ids: [doc.id],
       }),
     })
 
-    const data = await res.json()
-
-    // ✅ FIXED
-    const sid = data.session_id || data.id
-    setSessionId(sid)
+    const sessionData = await sessionRes.json()
+    setSessionId(sessionData.session_id || sessionData.id)
 
     setMessages([
       {
@@ -101,7 +95,7 @@ export default function App() {
       ...prev,
       {
         role: "assistant",
-        content: data.answer || data.response || "",
+        content: data.answer,
         typing: true,
       },
     ])
@@ -116,18 +110,17 @@ export default function App() {
 
         <label className="upload">
           Upload PDF
-          <input type="file" hidden accept="application/pdf" onChange={uploadPDF} />
+          <input
+            type="file"
+            accept="application/pdf"
+            hidden
+            onChange={uploadPDF}
+          />
         </label>
-
-        {documents.length > 0 && !sessionId && (
-          <button className="start" onClick={startSession}>
-            Start Session
-          </button>
-        )}
 
         {documents.length > 0 && (
           <div className="docs">
-            <h4>Documents</h4>
+            <h4 className="docs-title">Documents</h4>
             {documents.map((d) => (
               <div key={d.id} className="doc-item">
                 {d.name}
@@ -177,7 +170,9 @@ export default function App() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={
-              sessionId ? "Message DocuChat..." : "Upload a PDF to start"
+              sessionId
+                ? "Message DocuChat..."
+                : "Upload a PDF to start"
             }
             disabled={!sessionId}
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
