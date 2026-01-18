@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import HealthCheckView, UploadPDFView, ChatView
+from .views import UploadPDFView, ChatView, HealthCheckView
 
 urlpatterns = [
     path("health/", HealthCheckView.as_view()),
