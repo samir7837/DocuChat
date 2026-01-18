@@ -2,6 +2,8 @@ import { useState, useEffect } from "react"
 import ReactMarkdown from "react-markdown"
 import "./App.css"
 
+const API = import.meta.env.VITE_API_BASE_URL
+
 /* ---------- Typing Effect ---------- */
 function TypingMessage({ text, onFinish }) {
   const [display, setDisplay] = useState("")
@@ -31,8 +33,6 @@ export default function App() {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState("")
 
-  const API_BASE = import.meta.env.VITE_API_BASE_URL
-
   /* ---------- Upload PDF ---------- */
   const uploadPDF = async (e) => {
     const file = e.target.files[0]
@@ -44,21 +44,25 @@ export default function App() {
     const form = new FormData()
     form.append("file", file)
 
-    const res = await fetch(`${API_BASE}/api/upload/`, {
+    const res = await fetch(`${API}/api/upload/`, {
       method: "POST",
       body: form,
     })
+
     const data = await res.json()
     setDocuments((prev) => [...prev, data])
   }
 
   /* ---------- Start Session ---------- */
   const startSession = async () => {
-    const res = await fetch(`${API_BASE}/api/session/`, {
+    const res = await fetch(`${API}/api/session/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ document_ids: documents.map((d) => d.id) }),
+      body: JSON.stringify({
+        document_ids: documents.map((d) => d.id),
+      }),
     })
+
     const data = await res.json()
     setSessionId(data.session_id)
 
@@ -78,14 +82,12 @@ export default function App() {
     setMessages((prev) => [...prev, { role: "user", content: input }])
     setInput("")
 
-    const res = await fetch(
-      `${API_BASE}/api/chat/${sessionId}/`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: input }),
-      }
-    )
+    const res = await fetch(`${API}/api/chat/${sessionId}/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: input }),
+    })
+
     const data = await res.json()
 
     setMessages((prev) => [
@@ -100,14 +102,18 @@ export default function App() {
 
   return (
     <div className="app">
-      {/* Sidebar */}
       <aside className="sidebar">
         <h2>DocuChat</h2>
         <p>AI Document Assistant</p>
 
         <label className="upload">
           Upload PDF
-          <input type="file" accept="application/pdf" hidden onChange={uploadPDF} />
+          <input
+            type="file"
+            accept="application/pdf"
+            hidden
+            onChange={uploadPDF}
+          />
         </label>
 
         {documents.length > 0 && !sessionId && (
@@ -128,7 +134,6 @@ export default function App() {
         )}
       </aside>
 
-      {/* Chat */}
       <main className="chat">
         <header>
           <h3>Hi, I am your Document Assistant</h3>
