@@ -2,10 +2,8 @@ import { useState, useEffect } from "react"
 import ReactMarkdown from "react-markdown"
 import "./App.css"
 
-/* ---------- API BASE ---------- */
 const API = import.meta.env.VITE_API_BASE_URL
 
-/* ---------- Typing Effect ---------- */
 function TypingMessage({ text, onFinish }) {
   const [display, setDisplay] = useState("")
 
@@ -37,26 +35,26 @@ export default function App() {
   /* ---------- Upload PDF ---------- */
   const uploadPDF = async (e) => {
     const file = e.target.files[0]
-    if (!file || file.type !== "application/pdf") {
-      alert("Only PDF files are allowed.")
-      return
-    }
+    if (!file) return
 
     const form = new FormData()
     form.append("file", file)
 
-    try {
-      const res = await fetch(`${API}/api/upload/`, {
-        method: "POST",
-        body: form,
-      })
+    const res = await fetch(`${API}/api/upload/`, {
+      method: "POST",
+      body: form,
+    })
 
-      const data = await res.json()
-      setDocuments((prev) => [...prev, data])
-    } catch (err) {
-      console.error("Upload failed:", err)
-      alert("Upload failed. Check backend connection.")
-    }
+    const data = await res.json()
+
+    // ✅ normalize backend response
+    setDocuments((prev) => [
+      ...prev,
+      {
+        id: data.id || data.document_id,
+        name: data.name || data.filename || file.name,
+      },
+    ])
   }
 
   /* ---------- Start Session ---------- */
@@ -70,7 +68,10 @@ export default function App() {
     })
 
     const data = await res.json()
-    setSessionId(data.session_id)
+
+    // ✅ FIXED
+    const sid = data.session_id || data.id
+    setSessionId(sid)
 
     setMessages([
       {
@@ -100,7 +101,7 @@ export default function App() {
       ...prev,
       {
         role: "assistant",
-        content: data.answer,
+        content: data.answer || data.response || "",
         typing: true,
       },
     ])
@@ -115,12 +116,7 @@ export default function App() {
 
         <label className="upload">
           Upload PDF
-          <input
-            type="file"
-            accept="application/pdf"
-            hidden
-            onChange={uploadPDF}
-          />
+          <input type="file" hidden accept="application/pdf" onChange={uploadPDF} />
         </label>
 
         {documents.length > 0 && !sessionId && (
@@ -131,7 +127,7 @@ export default function App() {
 
         {documents.length > 0 && (
           <div className="docs">
-            <h4 className="docs-title">Documents</h4>
+            <h4>Documents</h4>
             {documents.map((d) => (
               <div key={d.id} className="doc-item">
                 {d.name}
@@ -186,7 +182,9 @@ export default function App() {
             disabled={!sessionId}
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
           />
-          <button onClick={sendMessage}>Send</button>
+          <button onClick={sendMessage} disabled={!sessionId}>
+            Send
+          </button>
         </footer>
       </main>
     </div>
