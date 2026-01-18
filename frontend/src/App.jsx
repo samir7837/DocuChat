@@ -4,7 +4,6 @@ import "./App.css"
 
 const API = import.meta.env.VITE_API_BASE_URL
 
-/* ---------- Typing Effect ---------- */
 function TypingMessage({ text, onFinish }) {
   const [display, setDisplay] = useState("")
 
@@ -22,7 +21,7 @@ function TypingMessage({ text, onFinish }) {
     }, 12)
 
     return () => clearInterval(interval)
-  }, [text, onFinish])
+  }, [text])
 
   return <span>{display}</span>
 }
@@ -48,24 +47,27 @@ export default function App() {
 
     const data = await res.json()
 
-    const doc = {
-      id: data.id || data.document_id,
-      name: data.name || data.filename || file.name,
-    }
+    const docId = data.id || data.document_id
+    const docName = data.name || data.filename || file.name
 
-    setDocuments([doc])
+    setDocuments([{ id: docId, name: docName }])
 
-    // 🔥 auto start session
+    /* 🔥 CREATE SESSION */
     const sessionRes = await fetch(`${API}/api/session/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        document_ids: [doc.id],
+        document_ids: [docId],
       }),
     })
 
     const sessionData = await sessionRes.json()
-    setSessionId(sessionData.session_id || sessionData.id)
+
+    const sid = sessionData.session_id || sessionData.id
+
+    console.log("SESSION:", sessionData)
+
+    setSessionId(sid)
 
     setMessages([
       {
@@ -103,7 +105,6 @@ export default function App() {
 
   return (
     <div className="app">
-      {/* Sidebar */}
       <aside className="sidebar">
         <h2>DocuChat</h2>
         <p>AI Document Assistant</p>
@@ -130,7 +131,6 @@ export default function App() {
         )}
       </aside>
 
-      {/* Chat */}
       <main className="chat">
         <header>
           <h3>Hi, I am your Document Assistant</h3>
