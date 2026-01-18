@@ -68,31 +68,32 @@ class CreateSessionView(APIView):
 
 
 class ChatView(APIView):
-    def post(self, request, session_id):
-        try:
-            session = ChatSession.objects.get(id=session_id)
-        except ChatSession.DoesNotExist:
-            return Response({"error": "Session not found"}, status=404)
-
+    def post(self, request):
         query = request.data.get("message")
+
         if not query:
             return Response({"error": "No message provided"}, status=400)
 
-        Message.objects.create(session=session, role="user", content=query)
+        # Get latest uploaded document
+        doc = Document.objects.order_by("-id").first()
 
-        document_content = {}
-        for doc in session.documents.all():
-            document_content.update(doc.parsed_content or {})
+        if not doc:
+            return Response(
+                {"answer": "No document uploaded yet."},
+                status=200
+            )
 
-        history = [
-            {"role": m.role, "content": m.content}
-            for m in session.messages.order_by("timestamp")
-        ]
+        document_content = doc.parsed_content or {}
+
+        history = []
 
         try:
             from .graphs import compiled_graph
         except Exception as e:
-            return Response({"answer": f"AI unavailable: {str(e)}"}, status=200)
+            return Response(
+                {"answer": f"AI unavailable: {str(e)}"},
+                status=200
+            )
 
         state = {
             "document_content": document_content,
@@ -109,7 +110,5 @@ class ChatView(APIView):
             answer = result.get("answer", "No answer generated.")
         except Exception as e:
             answer = f"AI error: {str(e)}"
-
-        Message.objects.create(session=session, role="assistant", content=answer)
 
         return Response({"answer": answer}, status=200)
